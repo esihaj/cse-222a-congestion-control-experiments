@@ -1,0 +1,7 @@
+.env
+.terraform
+keys/id_rsa
+keys/id_rsa.pub
+state/
+results/
+*.log
