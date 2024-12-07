@@ -28,8 +28,8 @@ ssh $SSH_OPTS $SSH_USER@$CLIENT_IP "rm -rf results || true"
 scp $SSH_OPTS scripts/remote_runner.sh $SSH_USER@$SERVER_IP:remote_runner.sh
 ssh $SSH_OPTS $SSH_USER@$SERVER_IP "chmod +x remote_runner.sh"
 
-scp $SSH_OPTS scripts/{remote_runner.sh,benchmark_nginx.sh} $SSH_USER@$CLIENT_IP:
-ssh $SSH_OPTS $SSH_USER@$CLIENT_IP "chmod +x remote_runner.sh benchmark_nginx.sh"
+scp $SSH_OPTS scripts/{remote_runner.sh,configure_network.sh,benchmark_nginx.sh} $SSH_USER@$CLIENT_IP:
+ssh $SSH_OPTS $SSH_USER@$CLIENT_IP "chmod +x remote_runner.sh configure_network.sh benchmark_nginx.sh"
 
 #remove results dir 
 echo "[RUN_EXPERIMENTS] Clearing out old local results..."

@@ -45,21 +45,7 @@ elif [ "$PHASE" = "run" ]; then
     else
         # Client side
         IFACE=$(cat "$RESULT_DIR/iface.txt")
-
-        # Clear qdisc (ignore error if no qdisc)
-        sudo tc qdisc del dev "$IFACE" root 2>/dev/null || true
-
-        # Apply netem if needed
-        if [ "$DELAY" != "0" ] || [ "$LOSS" != "0" ]; then
-            NETEM_CMD="sudo tc qdisc add dev $IFACE root netem"
-            if [ "$DELAY" != "0" ]; then
-                NETEM_CMD="$NETEM_CMD delay ${DELAY}ms"
-            fi
-            if [ "$LOSS" != "0" ]; then
-                NETEM_CMD="$NETEM_CMD loss ${LOSS}%"
-            fi
-            eval "$NETEM_CMD"
-        fi
+        ./configure_network.sh "$IFACE" "$CCA" "$DELAY" "$LOSS"
 
         # Start collecting ss metrics in background
         echo -e "${GREEN}[REMOTE_RUNNER-$ROLE] Starting metric collection (ss -i) in background...${RESET}"
