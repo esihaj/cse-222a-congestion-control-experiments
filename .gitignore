@@ -3,5 +3,5 @@
 keys/id_rsa
 keys/id_rsa.pub
 state/
-results/
+iperf3_plotter
 *.log

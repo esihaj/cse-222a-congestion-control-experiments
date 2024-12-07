@@ -1,38 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SSH_OPTS="-i keys/id_rsa -o StrictHostKeyChecking=no"
+if [ ! -f .env ]; then
+    echo "No .env file found. Please create one with SERVER_IP and CLIENT_IP."
+    exit 1
+fi
 
-SERVER_IP=$(docker run --rm \
-    -v "$(pwd)":/app \
-    -w /app \
-    -e AWS_ACCESS_KEY_ID \
-    -e AWS_SECRET_ACCESS_KEY \
-    -e AWS_DEFAULT_REGION \
-    local-terraform:latest \
-    terraform output -raw server_public_ip)
+# shellcheck source=/dev/null
+source .env
 
-CLIENT_IP=$(docker run --rm \
-    -v "$(pwd)":/app \
-    -w /app \
-    -e AWS_ACCESS_KEY_ID \
-    -e AWS_SECRET_ACCESS_KEY \
-    -e AWS_DEFAULT_REGION \
-    local-terraform:latest \
-    terraform output -raw client_public_ip)
+if [ -z "${SERVER_IP:-}" ] || [ -z "${CLIENT_IP:-}" ]; then
+    echo "SERVER_IP or CLIENT_IP not set in .env."
+    exit 1
+fi
 
-GREEN="\e[32m"
-RED="\e[31m"
-RESET="\e[0m"
+SSH_USER="${SSH_USER:-ubuntu}"
+SSH_KEY_PATH="${SSH_KEY_PATH:-~/.ssh/id_rsa}"
+SSH_OPTS="-i $SSH_KEY_PATH -o StrictHostKeyChecking=no"
 
 check_host() {
     HOST=$1
-    echo -e "${GREEN}[CHECK_BBR] Checking BBR on $HOST...${RESET}"
-    AVAIL=$(ssh $SSH_OPTS ubuntu@$HOST "sysctl net.ipv4.tcp_available_congestion_control")
-    echo "$AVAIL" | grep -q bbr || { echo -e "${RED}BBR not supported on $HOST${RESET}"; exit 1; }
+    echo "[CHECK_BBR] Checking BBR on $HOST..."
+    AVAIL=$(ssh $SSH_OPTS $SSH_USER@$HOST "sysctl net.ipv4.tcp_available_congestion_control")
+    echo "$AVAIL" | grep -q bbr || { echo "BBR not supported on $HOST"; exit 1; }
 }
 
 check_host $SERVER_IP
 check_host $CLIENT_IP
 
-echo -e "${GREEN}BBR is supported on both server and client.${RESET}"
+echo "BBR is supported on both server and client."

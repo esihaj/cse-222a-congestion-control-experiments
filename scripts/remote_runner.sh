@@ -1,53 +1,94 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CCA="$1"
-ROLE="$2"
-PEER_IP="$3"
-DURATION="$4"
-DELAY="$5"
-LOSS="$6"
-RESULT_DIR="$7"
-IFACE="$8"
+ROLE="$1"    # server or client
+PHASE="$2"   # init or run
 
 GREEN="\e[32m"
 YELLOW="\e[33m"
 RESET="\e[0m"
 
-echo -e "${GREEN}[REMOTE_RUNNER] Starting with CCA=$CCA ROLE=$ROLE PEER=$PEER_IP DELAY=${DELAY}ms LOSS=${LOSS}% IFACE=$IFACE ${RESET}"
+if [ "$PHASE" = "init" ]; then
+    # Args: ROLE init RESULT_DIR
+    RESULT_DIR="$3"
+    echo -e "${GREEN}[REMOTE_RUNNER-$ROLE] INIT phase for $ROLE${RESET}"
 
-sudo sysctl -w net.ipv4.tcp_congestion_control=$CCA
-
-# Clear existing qdisc
-sudo tc qdisc del dev "$IFACE" root || true
-
-# Add netem if needed
-if [ "$DELAY" != "0" ] || [ "$LOSS" != "0" ]; then
-    NETEM_CMD="sudo tc qdisc add dev $IFACE root netem"
-    if [ "$DELAY" != "0" ]; then
-        NETEM_CMD="$NETEM_CMD delay ${DELAY}ms"
-    fi
-    if [ "$LOSS" != "0" ]; then
-        NETEM_CMD="$NETEM_CMD loss ${LOSS}%"
-    fi
-    eval "$NETEM_CMD"
-fi
-
-mkdir -p "$RESULT_DIR"
-
-if [ "$ROLE" = "server" ]; then
-    echo -e "${GREEN}[REMOTE_RUNNER] Starting iperf3 server...${RESET}"
     pkill iperf3 || true
-    nohup iperf3 -s > "$RESULT_DIR/iperf3_server.log" 2>&1 &
-    exit 0
-else
-    echo -e "${GREEN}[REMOTE_RUNNER] Running iperf3 client test...${RESET}"
-    pkill iperf3 || true
-    iperf3 -c "$PEER_IP" -t "$DURATION" -J > "$RESULT_DIR/iperf3_output.json"
+    mkdir -p "$RESULT_DIR"
 
-    for i in $(seq 1 "$DURATION"); do
-        ss -i dst "$PEER_IP" >> "$RESULT_DIR/ss_cwnd_ssthresh.log" 2>&1 || true
-        ping -c1 "$PEER_IP" | grep 'time=' >> "$RESULT_DIR/rtt.log" 2>&1 || true
+    if [ "$ROLE" = "client" ]; then
+        # Determine IFACE and store it
+        IFACE=$(ip route get 1.1.1.1 | grep -oP 'dev \K\S+')
+        echo "$IFACE" > "$RESULT_DIR/iface.txt"
+        echo -e "${GREEN}[REMOTE_RUNNER-$ROLE] IFACE detected: $IFACE${RESET}"
+    fi
+
+elif [ "$PHASE" = "run" ]; then
+    # Args for run: ROLE run CCA RemoteIP Duration Delay Loss RESULT_DIR
+    CCA="$3"
+    REMOTE_IP="$4"
+    DURATION="$5"
+    DELAY="$6"
+    LOSS="$7"
+    RESULT_DIR="$8"
+
+    echo -e "${GREEN}[REMOTE_RUNNER-$ROLE] RUN phase: CCA=$CCA, Delay=${DELAY}ms, Loss=${LOSS}%${RESET}"
+
+    # Set CCA
+    sudo sysctl -w net.ipv4.tcp_congestion_control=$CCA
+
+    if [ "$ROLE" = "server" ]; then
+        # Start iperf3 server
+        echo -e "${GREEN}[REMOTE_RUNNER-$ROLE] Starting iperf3 server...${RESET}"
+        nohup iperf3 -i 1 -s > "$RESULT_DIR/iperf3_server.log" 2>&1 &
+        exit 0
+    else
+        # Client side
+        IFACE=$(cat "$RESULT_DIR/iface.txt")
+
+        # Clear qdisc (ignore error if no qdisc)
+        sudo tc qdisc del dev "$IFACE" root 2>/dev/null || true
+
+        # Apply netem if needed
+        if [ "$DELAY" != "0" ] || [ "$LOSS" != "0" ]; then
+            NETEM_CMD="sudo tc qdisc add dev $IFACE root netem"
+            if [ "$DELAY" != "0" ]; then
+                NETEM_CMD="$NETEM_CMD delay ${DELAY}ms"
+            fi
+            if [ "$LOSS" != "0" ]; then
+                NETEM_CMD="$NETEM_CMD loss ${LOSS}%"
+            fi
+            eval "$NETEM_CMD"
+        fi
+
+        # Start collecting ss metrics in background
+        echo -e "${GREEN}[REMOTE_RUNNER-$ROLE] Starting metric collection (ss -i) in background...${RESET}"
+        EXTRA_TIME=2  # Collect a bit after iperf finishes
+        END_TIME=$((SECONDS + DURATION + EXTRA_TIME))
+
+        (
+          while [ $SECONDS -lt $END_TIME ]; do
+            ss --no-header -in dst "$REMOTE_IP" | ts '%.s' >> "$RESULT_DIR/ss_metrics.log" 2>&1
+            # echo "###" >> "$RESULT_DIR/ss_metrics.log"
+            sleep 0.2
+          done
+        ) &
+        METRIC_PID=$!
+
+        # Wait a bit before starting iperf for baseline metrics
         sleep 1
-    done
+
+        echo -e "${GREEN}[REMOTE_RUNNER-$ROLE] Running iperf3 client test...${RESET}"
+        iperf3 -c "$REMOTE_IP" -t "$DURATION" -i 0.2 -J > "$RESULT_DIR/iperf3_output.json"
+
+        echo -e "${GREEN}[REMOTE_RUNNER-$ROLE] iperf3 test complete, stopping metric collection...${RESET}"
+        kill $METRIC_PID || true
+        wait $METRIC_PID 2>/dev/null || true
+
+        # If you want to collect a bit post-iperf, you could let the sleep run out instead of killing immediately.
+    fi
+
+else
+    echo -e "${YELLOW}[REMOTE_RUNNER] Invalid phase: $PHASE${RESET}"
+    exit 1
 fi

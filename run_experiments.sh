@@ -1,51 +1,47 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SSH_OPTS="-i keys/id_rsa -o StrictHostKeyChecking=no"
+if [ ! -f .env ]; then
+    echo "No .env file found. Please create one with SERVER_IP and CLIENT_IP."
+    exit 1
+fi
 
-cd "$(dirname "$0")"
+source .env
 
-SERVER_IP=$(docker run --rm \
-    -v "$(pwd)":/app \
-    -w /app \
-    -e AWS_ACCESS_KEY_ID \
-    -e AWS_SECRET_ACCESS_KEY \
-    -e AWS_DEFAULT_REGION \
-    local-terraform:latest \
-    terraform output -raw server_public_ip)
+if [ -z "${SERVER_IP:-}" ] || [ -z "${CLIENT_IP:-}" ]; then
+    echo "SERVER_IP or CLIENT_IP not set in .env."
+    exit 1
+fi
 
-CLIENT_IP=$(docker run --rm \
-    -v "$(pwd)":/app \
-    -w /app \
-    -e AWS_ACCESS_KEY_ID \
-    -e AWS_SECRET_ACCESS_KEY \
-    -e AWS_DEFAULT_REGION \
-    local-terraform:latest \
-    terraform output -raw client_public_ip)
+SSH_USER="${SSH_USER:-ubuntu}"
+SSH_KEY_PATH="${SSH_KEY_PATH:-~/.ssh/id_rsa}"
+SSH_OPTS="-i $SSH_KEY_PATH -o StrictHostKeyChecking=no"
 
-GREEN="\e[32m"
-RESET="\e[0m"
+echo "[RUN_EXPERIMENTS] Setting up hosts..."
+# scp $SSH_OPTS scripts/remote_setup.sh $SSH_USER@$SERVER_IP:remote_setup.sh
+# ssh $SSH_OPTS $SSH_USER@$SERVER_IP "chmod +x remote_setup.sh && ./remote_setup.sh"
 
-echo -e "${GREEN}[RUN_EXPERIMENTS] Copying scripts to remote hosts...${RESET}"
-scp $SSH_OPTS scripts/setup_host.sh ubuntu@$SERVER_IP:setup_host.sh
-scp $SSH_OPTS scripts/setup_host.sh ubuntu@$CLIENT_IP:setup_host.sh
-ssh $SSH_OPTS ubuntu@$SERVER_IP "chmod +x setup_host.sh && ./setup_host.sh"
-ssh $SSH_OPTS ubuntu@$CLIENT_IP "chmod +x setup_host.sh && ./setup_host.sh"
+# scp $SSH_OPTS scripts/remote_setup.sh $SSH_USER@$CLIENT_IP:remote_setup.sh
+# ssh $SSH_OPTS $SSH_USER@$CLIENT_IP "chmod +x remote_setup.sh && ./remote_setup.sh"
 
-scp $SSH_OPTS scripts/remote_setup.sh ubuntu@$SERVER_IP:remote_setup.sh
-scp $SSH_OPTS scripts/remote_setup.sh ubuntu@$CLIENT_IP:remote_setup.sh
-ssh $SSH_OPTS ubuntu@$SERVER_IP "chmod +x remote_setup.sh && ./remote_setup.sh"
-ssh $SSH_OPTS ubuntu@$CLIENT_IP "chmod +x remote_setup.sh && ./remote_setup.sh"
+# Clear old results on remote hosts
+echo "[RUN_EXPERIMENTS] Clearing out old results on server..."
+ssh $SSH_OPTS $SSH_USER@$SERVER_IP "rm -rf results || true"
 
-scp $SSH_OPTS scripts/remote_runner.sh ubuntu@$SERVER_IP:remote_runner.sh
-scp $SSH_OPTS ubuntu@$CLIENT_IP:remote_runner.sh
-ssh $SSH_OPTS ubuntu@$SERVER_IP "chmod +x remote_runner.sh"
-ssh $SSH_OPTS ubuntu@$CLIENT_IP "chmod +x remote_runner.sh"
+echo "[RUN_EXPERIMENTS] Clearing out old results on client..."
+ssh $SSH_OPTS $SSH_USER@$CLIENT_IP "rm -rf results || true"
 
-scp $SSH_OPTS scripts/run_scenario.sh ubuntu@$CLIENT_IP:run_scenario.sh
-ssh $SSH_OPTS ubuntu@$CLIENT_IP "chmod +x run_scenario.sh"
+scp $SSH_OPTS scripts/remote_runner.sh $SSH_USER@$SERVER_IP:remote_runner.sh
+ssh $SSH_OPTS $SSH_USER@$SERVER_IP "chmod +x remote_runner.sh"
 
-echo -e "${GREEN}[RUN_EXPERIMENTS] Running scenarios...${RESET}"
+scp $SSH_OPTS scripts/remote_runner.sh $SSH_USER@$CLIENT_IP:remote_runner.sh
+ssh $SSH_OPTS $SSH_USER@$CLIENT_IP "chmod +x remote_runner.sh"
+
+#remove results dir 
+echo "[RUN_EXPERIMENTS] Clearing out old local results..."
+rm -rf results
+
+echo "[RUN_EXPERIMENTS] Running scenarios..."
 
 SCENARIOS=(
     "cubic 0 0.0 results/cubic/standard"
@@ -58,31 +54,12 @@ SCENARIOS=(
     "bbr 20 0.01 results/bbr/delay_20ms_loss_0.01"
 )
 
+DURATION=30
+
 for scenario in "${SCENARIOS[@]}"; do
-    # run_scenario.sh: CCA DELAY LOSS RESULT_DIR
-    # We pass SERVER_IP, CLIENT_IP first
-    ssh $SSH_OPTS ubuntu@$CLIENT_IP "./run_scenario.sh $SERVER_IP $CLIENT_IP $scenario"
+    ./run_scenario.sh "$SERVER_IP" "$CLIENT_IP" $scenario $DURATION
+    echo "----------------------------------------------------------"
+    echo "----------------------------------------------------------"
 done
 
-echo -e "${GREEN}[RUN_EXPERIMENTS] All scenarios completed. Fetching results...${RESET}"
-
-# Fetch all results from both server and client
-LOCAL_RESULTS_DIR="results"
-mkdir -p "$LOCAL_RESULTS_DIR"
-
-# We know the directories from SCENARIOS, so fetch them
-for scenario in "${SCENARIOS[@]}"; do
-    PARTS=($scenario)
-    CCA=${PARTS[0]}
-    DELAY=${PARTS[1]}
-    LOSS=${PARTS[2]}
-    REMOTE_DIR=${PARTS[3]}
-
-    # Fetch from client
-    mkdir -p "$LOCAL_RESULTS_DIR/$CCA"
-    scp -r $SSH_OPTS ubuntu@$CLIENT_IP:"$REMOTE_DIR" "$LOCAL_RESULTS_DIR/$CCA/"
-    # Fetch from server
-    scp -r $SSH_OPTS ubuntu@$SERVER_IP:"$REMOTE_DIR" "$LOCAL_RESULTS_DIR/$CCA/"
-done
-
-echo -e "${GREEN}[RUN_EXPERIMENTS] Results are now in the local results/ directory.${RESET}"
+echo "[RUN_EXPERIMENTS] All scenarios complete. Results are in results/."
