@@ -8,7 +8,7 @@ RESET="\e[0m"
 # Function to display usage information
 usage() {
     echo -e "${GREEN}Usage:${RESET}"
-    echo -e "  $0 -u <url> -t <threads> -c <connections> -d <duration> -r <rate> -o <output_file>"
+    echo -e "  $0 -u <url> -t <threads> -c <connections> -d <duration> -r <rate> -o <output_file> [--cca <cca>] [--delay <delay>] [--loss <loss>]"
     echo -e "\n${GREEN}Options:${RESET}"
     echo -e "  -u    URL of the website to benchmark (required)"
     echo -e "  -t    Number of threads (default: 2)"
@@ -16,6 +16,9 @@ usage() {
     echo -e "  -d    Duration of the benchmark (default: 30s)"
     echo -e "  -r    Request rate in requests per second (default: 1000)"
     echo -e "  -o    Output file to write the results (default: benchmark_results.txt)"
+    echo -e "  --cca Congestion control algorithm (default: cubic)"
+    echo -e "  --delay Network delay in ms (default: 0)"
+    echo -e "  --loss Network packet loss percentage (default: 0)"
     exit 1
 }
 
@@ -26,18 +29,25 @@ DURATION="30s"
 RATE=1000
 URL=""
 OUTPUT_FILE="benchmark_results.txt"
+CCA="cubic"
+DELAY=0
+LOSS=0
 
 # Parse command-line arguments
-while getopts "u:t:c:d:r:o:" opt; do
-    case $opt in
-        u) URL="$OPTARG" ;;
-        t) THREADS="$OPTARG" ;;
-        c) CONNECTIONS="$OPTARG" ;;
-        d) DURATION="$OPTARG" ;;
-        r) RATE="$OPTARG" ;;
-        o) OUTPUT_FILE="$OPTARG" ;;
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -u) URL="$2"; shift ;;
+        -t) THREADS="$2"; shift ;;
+        -c) CONNECTIONS="$2"; shift ;;
+        -d) DURATION="$2"; shift ;;
+        -r) RATE="$2"; shift ;;
+        -o) OUTPUT_FILE="$2"; shift ;;
+        --cca) CCA="$2"; shift ;;
+        --delay) DELAY="$2"; shift ;;
+        --loss) LOSS="$2"; shift ;;
         *) usage ;;
     esac
+    shift
 done
 
 # Check if the URL is provided
@@ -52,6 +62,21 @@ if ! command -v wrk &> /dev/null; then
     exit 1
 fi
 
+# Determine network interface
+IFACE=$(ip route get 1.1.1.1 | grep -oP 'dev \K\S+')
+if [ -z "$IFACE" ]; then
+    echo -e "${RED}Error: Could not determine network interface.${RESET}"
+    exit 1
+fi
+
+# Configure network settings
+echo -e "${GREEN}Configuring network with the following parameters:${RESET}"
+echo -e "  Congestion Control Algorithm: $CCA"
+echo -e "  Network Delay: ${DELAY}ms"
+echo -e "  Network Packet Loss: ${LOSS}%"
+./configure_network.sh "$IFACE" "$CCA" "$DELAY" "$LOSS"
+
+# Create output directory if it doesn't exist
 mkdir -p "$(dirname "$OUTPUT_FILE")"
 
 # Run the benchmark and write results to file

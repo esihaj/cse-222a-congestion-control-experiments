@@ -1,0 +1,8 @@
+Running 6s test @ http://34.222.140.92
+  2 threads and 100 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   963.19ms  523.03ms   1.96s    57.78%
+    Req/Sec       -nan      -nan   0.00      0.00%
+  20086 requests in 6.00s, 283.08MB read
+Requests/sec:   3347.01
+Transfer/sec:     47.17MB
