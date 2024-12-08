@@ -56,36 +56,8 @@ for scenario in "${SCENARIOS[@]}"; do
     echo "----------------------------------------------------------"
 done
 
-NGINX_BASE_RESULTS_DIR="results/nginx"
-# Prepare directories for nginx results
-mkdir -p "$NGINX_BASE_RESULTS_DIR"
 
-echo -e "\033[31m[EXPERIMENTS] Check CPU utilization on client and server during the benchmark execution to make sure it is not the bottleneck.\033[0m"
 
-echo "[RUN_EXPERIMENTS] Running benchmark_nginx.sh on client for each scenario..."
-
-# Run nginx benchmark for each CCA scenario
-for scenario in "${SCENARIOS[@]}"; do
-    read -r CCA DELAY LOSS SCENARIO_DIR <<< "$scenario"
-
-    # Create specific nginx results directory for the scenario
-    NGINX_SCENARIO_DIR="$NGINX_BASE_RESULTS_DIR/$CCA/$(basename "$SCENARIO_DIR")"
-    mkdir -p "$NGINX_SCENARIO_DIR"
-
-    NGINX_SCENARIOS=(
-        "-t 2 -c 100 -d 6s -r 1000 -o $NGINX_SCENARIO_DIR/conns_100_rps_1000.txt"
-        # "-t 2 -c 100 -d 6s -r 2000 -o $NGINX_SCENARIO_DIR/conns_100_rps_2000.txt"
-        "-t 2 -c 100 -d 6s -r 3000 -o $NGINX_SCENARIO_DIR/conns_100_rps_3000.txt"
-        # "-t 2 -c 100 -d 6s -r 4000 -o $NGINX_SCENARIO_DIR/conns_100_rps_4000.txt"
-        "-t 2 -c 100 -d 6s -r 5000 -o $NGINX_SCENARIO_DIR/conns_100_rps_5000.txt"
-    )
-
-    for nginx_scenario in "${NGINX_SCENARIOS[@]}"; do
-        ssh $SSH_OPTS $SSH_USER@$CLIENT_IP "./benchmark_nginx.sh -u http://$SERVER_IP --cca $CCA --delay $DELAY --loss $LOSS $nginx_scenario"
-    done
-done
-
-echo "[RUN_EXPERIMENTS] Fetching results..."
-scp -r $SSH_OPTS $SSH_USER@$CLIENT_IP:"$NGINX_BASE_RESULTS_DIR" results/
+./run_nginx_scenarios.sh
 
 echo "[RUN_EXPERIMENTS] All scenarios complete. Results are in results/."
