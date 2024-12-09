@@ -77,17 +77,41 @@ echo -e "  Network Packet Loss: ${LOSS}%"
 ./configure_network.sh "$IFACE" "$CCA" "$DELAY" "$LOSS"
 
 # Create output directory if it doesn't exist
-mkdir -p "$(dirname "$OUTPUT_FILE")"
+OUTPUT_DIR=$(dirname "$OUTPUT_FILE")
+OUTPUT_BASENAME=$(basename "$OUTPUT_FILE" .txt)
+SS_LOG="$OUTPUT_DIR/ss_metrics_${OUTPUT_BASENAME}.log"
+
+mkdir -p "$OUTPUT_DIR"
+SERVER_IP=${URL#http://}
 
 # Run the benchmark and write results to file
 echo -e "${GREEN}Starting benchmark with the following parameters:${RESET}"
 echo -e "  URL: $URL"
+echo -e "  Server IP: $SERVER_IP"
 echo -e "  Threads: $THREADS"
 echo -e "  Connections: $CONNECTIONS"
 echo -e "  Duration: $DURATION"
 echo -e "  Request Rate: $RATE requests/second"
 echo -e "  Output File: $OUTPUT_FILE"
 
+# Start collecting `ss` metrics in the background
+echo -e "${GREEN}Starting socket statistics (ss) collection in the background...${RESET}"
+EXTRA_TIME=2  # Collect a bit after wrk finishes
+END_TIME=$((SECONDS + ${DURATION%s} + EXTRA_TIME))
+
+(
+  while [ $SECONDS -lt $END_TIME ]; do
+    ss --no-header -in dst "$SERVER_IP" | ts '%.s' >> "$SS_LOG" 2>&1
+    sleep 0.2
+  done
+) &
+SS_PID=$!
+
 wrk -t"$THREADS" -c"$CONNECTIONS" -d"$DURATION" -R"$RATE" "$URL" | tee "$OUTPUT_FILE"
+
+# Stop collecting `ss` metrics
+echo -e "${GREEN}Benchmark completed. Stopping ss collection...${RESET}"
+kill $SS_PID || true
+wait $SS_PID 2>/dev/null || true
 
 echo -e "${GREEN}Benchmark completed. Results written to: $OUTPUT_FILE${RESET}"
