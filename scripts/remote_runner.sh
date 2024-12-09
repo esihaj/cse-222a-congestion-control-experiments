@@ -15,7 +15,8 @@ if [ "$PHASE" = "init" ]; then
 
     pkill iperf3 || true
     mkdir -p "$RESULT_DIR"
-
+    ./remote_setup.sh
+    
     if [ "$ROLE" = "client" ]; then
         # Determine IFACE and store it
         IFACE=$(ip route get 1.1.1.1 | grep -oP 'dev \K\S+')
@@ -32,17 +33,14 @@ elif [ "$PHASE" = "run" ]; then
     LOSS="$7"
     RESULT_DIR="$8"
 
-    echo -e "${GREEN}[REMOTE_RUNNER-$ROLE] RUN phase: CCA=$CCA, Delay=${DELAY}ms, Loss=${LOSS}%${RESET}"
-
-    # Set CCA
-    sudo sysctl -w net.ipv4.tcp_congestion_control=$CCA
-
     if [ "$ROLE" = "server" ]; then
+        echo -e "${GREEN}[REMOTE_RUNNER-$ROLE] Running as server...${RESET}"
         # Start iperf3 server
         echo -e "${GREEN}[REMOTE_RUNNER-$ROLE] Starting iperf3 server...${RESET}"
         nohup iperf3 -i 1 -s > "$RESULT_DIR/iperf3_server.log" 2>&1 &
         exit 0
     else
+        echo -e "${GREEN}[REMOTE_RUNNER-$ROLE] Running as client...${RESET}"
         # Client side
         IFACE=$(cat "$RESULT_DIR/iface.txt")
         ./configure_network.sh "$IFACE" "$CCA" "$DELAY" "$LOSS"
@@ -56,7 +54,7 @@ elif [ "$PHASE" = "run" ]; then
           while [ $SECONDS -lt $END_TIME ]; do
             ss --no-header -in dst "$REMOTE_IP" | ts '%.s' >> "$RESULT_DIR/ss_metrics.log" 2>&1
             # echo "###" >> "$RESULT_DIR/ss_metrics.log"
-            sleep 0.2
+            # sleep 0.2
           done
         ) &
         METRIC_PID=$!
