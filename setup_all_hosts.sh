@@ -24,9 +24,11 @@ ssh $SSH_OPTS $SSH_USER@$SERVER_IP "chmod +x setup_host.sh && ./setup_host.sh"
 ssh $SSH_OPTS $SSH_USER@$SERVER_IP "chmod +x setup_nginx.sh && ./setup_nginx.sh $SERVER_IP"
 
 echo "[SETUP_ALL_HOSTS] Running setup_host.sh on client..."
-scp $SSH_OPTS scripts/{setup_host.sh,setup_wrk2.sh} $SSH_USER@$CLIENT_IP:
+scp $SSH_OPTS scripts/{setup_host.sh,setup_wrk2.sh,setup_wrk2_deathstarbench.sh} $SSH_USER@$CLIENT_IP:
 ssh $SSH_OPTS $SSH_USER@$CLIENT_IP "chmod +x setup_host.sh && ./setup_host.sh"
 ssh $SSH_OPTS $SSH_USER@$CLIENT_IP "chmod +x setup_wrk2.sh && ./setup_wrk2.sh"
+# ssh $SSH_OPTS $SSH_USER@$CLIENT_IP "chmod +x setup_wrk2_deathstarbench.sh && ./setup_wrk2_deathstarbench.sh"
+
 
 echo "[SETUP_ALL_HOSTS] setup_host.sh completed on both hosts."
 
