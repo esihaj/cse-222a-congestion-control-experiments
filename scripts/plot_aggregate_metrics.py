@@ -14,6 +14,10 @@ def traverse_results_dir(results_dir):
             # Extract subdir names for labeling
             subdirs = os.path.relpath(root, results_dir).split(os.sep)
             label = "_".join(subdirs)  # e.g., "bbr_delay_20ms"
+            # if "standard" in label:
+            #     continue
+            # if "delay" in label:
+            #     continue
             file_path = os.path.join(root, "data-plane.csv")
             experiment_data.append((label, file_path))
     return experiment_data
@@ -49,13 +53,13 @@ def plot_aggregate_metrics(results_dir, aggregate_dir):
         plt.legend()
         plt.grid(True)
         output_file = os.path.join(aggregate_dir, f"{metric}.png")
-        plt.savefig(output_file)
+        plt.savefig(output_file, dpi=300)
         plt.close()
 
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: ./aggregate_metrics.py <results_dir>")
+        print("Usage: ./plot_aggregate_metrics.py <results_dir>")
         sys.exit(1)
 
     results_dir = sys.argv[1]

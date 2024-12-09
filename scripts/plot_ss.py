@@ -21,7 +21,7 @@ def plot_graph(x, y, x_label, y_label, title, output_file, labels=None):
     plt.ylabel(y_label)
     plt.grid(True)
     plt.legend()
-    plt.savefig(output_file)
+    plt.savefig(output_file, dpi=300)
     plt.close()
 
 
