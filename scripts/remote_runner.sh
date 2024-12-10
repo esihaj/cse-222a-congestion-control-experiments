@@ -63,7 +63,7 @@ elif [ "$PHASE" = "run" ]; then
         sleep 1
 
         echo -e "${GREEN}[REMOTE_RUNNER-$ROLE] Running iperf3 client test...${RESET}"
-        iperf3 -c "$REMOTE_IP" -t "$DURATION" -i 0.2 -J > "$RESULT_DIR/iperf3_output.json"
+        iperf3 -c "$REMOTE_IP" -P 5 -t "$DURATION" -i 0.2 -J > "$RESULT_DIR/iperf3_output.json"
 
         echo -e "${GREEN}[REMOTE_RUNNER-$ROLE] iperf3 test complete, stopping metric collection...${RESET}"
         kill $METRIC_PID || true
