@@ -19,11 +19,11 @@ SSH_OPTS="-i $SSH_KEY_PATH -o StrictHostKeyChecking=no"
 
 
 SCENARIOS=(
-    "cubic 0 0.0 results/cubic/standard"
+    # "cubic 0 0.0 results/cubic/standard"
     "cubic 20 0.0 results/cubic/delay_20ms"
     "cubic 20 0.005 results/cubic/delay_20ms_loss_0.005"
     "cubic 20 0.01 results/cubic/delay_20ms_loss_0.01"
-    "bbr 0 0.0 results/bbr/standard"
+    # "bbr 0 0.0 results/bbr/standard"
     "bbr 20 0.0 results/bbr/delay_20ms"
     "bbr 20 0.005 results/bbr/delay_20ms_loss_0.005"
     "bbr 20 0.01 results/bbr/delay_20ms_loss_0.01"
@@ -49,11 +49,13 @@ for scenario in "${SCENARIOS[@]}"; do
     mkdir -p "$NGINX_SCENARIO_DIR"
 
     NGINX_SCENARIOS=(
-        "-t 2 -c 100 -d 6s -r 1000 -o $NGINX_SCENARIO_DIR/conns_100_rps_1000.txt"
-        # "-t 2 -c 100 -d 6s -r 2000 -o $NGINX_SCENARIO_DIR/conns_100_rps_2000.txt"
-        "-t 2 -c 100 -d 6s -r 3000 -o $NGINX_SCENARIO_DIR/conns_100_rps_3000.txt"
-        # "-t 2 -c 100 -d 6s -r 4000 -o $NGINX_SCENARIO_DIR/conns_100_rps_4000.txt"
-        "-t 2 -c 100 -d 6s -r 5000 -o $NGINX_SCENARIO_DIR/conns_100_rps_5000.txt"
+        "-t 30 -c 900 -d 6s -r 30000 -o $NGINX_SCENARIO_DIR/conns_900_rps_30k.txt"
+        "-t 30 -c 900 -d 6s -r 45000 -o $NGINX_SCENARIO_DIR/conns_900_rps_45k.txt"
+        "-t 30 -c 900 -d 6s -r 50000 -o $NGINX_SCENARIO_DIR/conns_900_rps_50k.txt"
+        # "-t 20 -c 40 -d 10s -r 4000 -o $NGINX_SCENARIO_DIR/conns_40_rps_4000.txt"
+        # "-t 20 -c 40 -d 10s -r 6000 -o $NGINX_SCENARIO_DIR/conns_40_rps_6000.txt"
+        # "-t 20 -c 40 -d 10s -r 8000 -o $NGINX_SCENARIO_DIR/conns_40_rps_8000.txt"
+        # "-t 20 -c 40 -d 10s -r 10000 -o $NGINX_SCENARIO_DIR/conns_40_rps_10000.txt"
     )
 
     for nginx_scenario in "${NGINX_SCENARIOS[@]}"; do

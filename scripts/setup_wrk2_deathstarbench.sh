@@ -43,6 +43,7 @@ fi
 # Build wrk2 from DeathStarBench
 echo "Building wrk2..."
 cd "$WRK2_BUILD_DIR"
+git submodule update --init --recursive
 make -j
 
 # Add wrk2 to the system PATH
