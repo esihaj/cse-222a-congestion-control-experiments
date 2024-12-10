@@ -1,0 +1,2 @@
+Scenario Name,Total Bytes Sent (GB),Avg Send Rate (Mbps),Avg Delivery Rate (Mbps),Avg RTT (ms),P99 RTT (ms)
+delay_20ms,81.77271668706089,992.9343317151247,944.8871147487744,43.067845957550226,48.84552
